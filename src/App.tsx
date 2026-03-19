@@ -7,7 +7,8 @@ import {
   ChevronDown, 
   ChevronUp,
   Info,
-  ArrowRightLeft
+  ArrowRightLeft,
+  Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
@@ -18,12 +19,14 @@ type CommodityType = 'gold' | 'lng' | 'oil';
 
 interface ConversionParams {
   usdToCny: number;
+  goldPriceUsdPerOz: number;
   oilDensity: number; // Specific gravity
   daysPerYear: number;
 }
 
 const DEFAULT_PARAMS: ConversionParams = {
   usdToCny: 7.19,
+  goldPriceUsdPerOz: 4500,
   oilDensity: 0.85, // Average crude
   daysPerYear: 365,
 };
@@ -179,7 +182,7 @@ export default function App() {
   const [goldOzUnit, setGoldOzUnit] = useState<string>('oz');
   const [goldG, setGoldG] = useState<string>('');
   const [goldGUnit, setGoldGUnit] = useState<string>('g');
-  const [goldPriceUsd, setGoldPriceUsd] = useState<string>('2160.50');
+  const [goldPriceUsd, setGoldPriceUsd] = useState<string>(DEFAULT_PARAMS.goldPriceUsdPerOz.toString());
   const [goldPriceCny, setGoldPriceCny] = useState<string>('');
 
   // LNG State
@@ -190,6 +193,10 @@ export default function App() {
   const [lngCfUnit, setLngCfUnit] = useState<string>('cf');
   const [lngCm, setLngCm] = useState<string>('');
   const [lngCmUnit, setLngCmUnit] = useState<string>('m³');
+  const [lngJoules, setLngJoules] = useState<string>('');
+  const [lngJoulesUnit, setLngJoulesUnit] = useState<string>('GJ');
+  const [lngWattHours, setLngWattHours] = useState<string>('');
+  const [lngWattHoursUnit, setLngWattHoursUnit] = useState<string>('MWh');
   const [lngPriceUsd, setLngPriceUsd] = useState<string>('10.00');
   const [lngPriceCny, setLngPriceCny] = useState<string>('');
 
@@ -200,6 +207,25 @@ export default function App() {
   const [oilBblDay, setOilBblDay] = useState<string>('');
   const [oilDensityInput, setOilDensityInput] = useState<string>(DEFAULT_PARAMS.oilDensity.toString());
   const [oilApiInput, setOilApiInput] = useState<string>(smartFormat((141.5 / DEFAULT_PARAMS.oilDensity) - 131.5));
+
+  const handleClearTab = () => {
+    if (activeTab === 'gold') {
+      setGoldOz('');
+      setGoldG('');
+    } else if (activeTab === 'lng') {
+      setLngTonne('');
+      setLngMmbtu('');
+      setLngCf('');
+      setLngCm('');
+      setLngJoules('');
+      setLngWattHours('');
+    } else if (activeTab === 'oil') {
+      setOilTonne('');
+      setOilBbl('');
+      setOilTonneYear('');
+      setOilBblDay('');
+    }
+  };
 
   // --- Conversion Handlers ---
 
@@ -260,8 +286,7 @@ export default function App() {
     setGoldPriceUsd(val);
     const num = parseFloat(val);
     if (!isNaN(num)) {
-      const cnyPerG = (num * params.usdToCny) / GOLD_FACTOR;
-      setGoldPriceCny(smartFormat(cnyPerG));
+      setGoldPriceCny(smartFormat((num * params.usdToCny) / GOLD_FACTOR));
     } else if (val === '') {
       setGoldPriceCny('');
     }
@@ -271,18 +296,21 @@ export default function App() {
     setGoldPriceCny(val);
     const num = parseFloat(val);
     if (!isNaN(num)) {
-      const usdPerOz = (num * GOLD_FACTOR) / params.usdToCny;
-      setGoldPriceUsd(smartFormat(usdPerOz));
+      setGoldPriceUsd(smartFormat((num * GOLD_FACTOR) / params.usdToCny));
     } else if (val === '') {
       setGoldPriceUsd('');
     }
   };
 
+  // Sync CNY prices when exchange rate changes
   useEffect(() => {
-    // Initial gold price calculation
-    const usd = parseFloat(goldPriceUsd);
-    if (!isNaN(usd)) {
-      setGoldPriceCny(smartFormat((usd * params.usdToCny) / GOLD_FACTOR));
+    const gUsd = parseFloat(goldPriceUsd);
+    if (!isNaN(gUsd)) {
+      setGoldPriceCny(smartFormat((gUsd * params.usdToCny) / GOLD_FACTOR));
+    }
+    const lUsd = parseFloat(lngPriceUsd);
+    if (!isNaN(lUsd)) {
+      setLngPriceCny(smartFormat((lUsd * params.usdToCny) / (LNG_CM_PER_TONNE / LNG_MMBTU_PER_TONNE)));
     }
   }, [params.usdToCny]);
 
@@ -290,17 +318,22 @@ export default function App() {
   const LNG_MMBTU_PER_TONNE = 51.7;
   const LNG_CF_PER_TONNE = 45910;
   const LNG_CM_PER_TONNE = 1300;
+  const LNG_J_PER_MMBTU = 1055055852.62;
+  const LNG_WH_PER_MMBTU = 293071.07;
 
   const CF_UNITS = { cf: 1, bcf: 1e9, tcf: 1e12 };
   const CM_UNITS = { 'm³': 1, 'MSm³': 1e6 };
   const TONNE_UNITS = { 't': 1, 'Mt': 1e6 };
+  const JOULE_UNITS = { MJ: 1e6, GJ: 1e9, TJ: 1e12 };
+  const WH_UNITS = { kWh: 1e3, MWh: 1e6, GWh: 1e9, TWh: 1e12 };
 
   const handleLngTonneChange = (val: string) => {
     setLngTonne(val);
     const num = parseFloat(val);
     if (!isNaN(num)) {
       const totalTonne = num * TONNE_UNITS[lngTonneUnit as keyof typeof TONNE_UNITS];
-      setLngMmbtu(smartFormat(totalTonne * LNG_MMBTU_PER_TONNE));
+      const totalMmbtu = totalTonne * LNG_MMBTU_PER_TONNE;
+      setLngMmbtu(smartFormat(totalMmbtu));
       
       const totalCf = totalTonne * LNG_CF_PER_TONNE;
       const cfUnit = autoScaleUnit(totalCf, CF_UNITS);
@@ -311,10 +344,22 @@ export default function App() {
       const cmUnit = autoScaleUnit(totalCm, CM_UNITS);
       setLngCmUnit(cmUnit);
       setLngCm(smartFormat(totalCm / CM_UNITS[cmUnit as keyof typeof CM_UNITS]));
+
+      const totalJ = totalMmbtu * LNG_J_PER_MMBTU;
+      const jUnit = autoScaleUnit(totalJ, JOULE_UNITS);
+      setLngJoulesUnit(jUnit);
+      setLngJoules(smartFormat(totalJ / JOULE_UNITS[jUnit as keyof typeof JOULE_UNITS]));
+
+      const totalWh = totalMmbtu * LNG_WH_PER_MMBTU;
+      const whUnit = autoScaleUnit(totalWh, WH_UNITS);
+      setLngWattHoursUnit(whUnit);
+      setLngWattHours(smartFormat(totalWh / WH_UNITS[whUnit as keyof typeof WH_UNITS]));
     } else if (val === '') {
       setLngMmbtu('');
       setLngCf('');
       setLngCm('');
+      setLngJoules('');
+      setLngWattHours('');
     }
   };
 
@@ -331,7 +376,8 @@ export default function App() {
     setLngMmbtu(val);
     const num = parseFloat(val);
     if (!isNaN(num)) {
-      const totalTonne = num / LNG_MMBTU_PER_TONNE;
+      const totalMmbtu = num;
+      const totalTonne = totalMmbtu / LNG_MMBTU_PER_TONNE;
       const tonneUnit = autoScaleUnit(totalTonne, TONNE_UNITS);
       setLngTonneUnit(tonneUnit);
       setLngTonne(smartFormat(totalTonne / TONNE_UNITS[tonneUnit as keyof typeof TONNE_UNITS]));
@@ -345,10 +391,22 @@ export default function App() {
       const cmUnit = autoScaleUnit(totalCm, CM_UNITS);
       setLngCmUnit(cmUnit);
       setLngCm(smartFormat(totalCm / CM_UNITS[cmUnit as keyof typeof CM_UNITS]));
+
+      const totalJ = totalMmbtu * LNG_J_PER_MMBTU;
+      const jUnit = autoScaleUnit(totalJ, JOULE_UNITS);
+      setLngJoulesUnit(jUnit);
+      setLngJoules(smartFormat(totalJ / JOULE_UNITS[jUnit as keyof typeof JOULE_UNITS]));
+
+      const totalWh = totalMmbtu * LNG_WH_PER_MMBTU;
+      const whUnit = autoScaleUnit(totalWh, WH_UNITS);
+      setLngWattHoursUnit(whUnit);
+      setLngWattHours(smartFormat(totalWh / WH_UNITS[whUnit as keyof typeof WH_UNITS]));
     } else if (val === '') {
       setLngTonne('');
       setLngCf('');
       setLngCm('');
+      setLngJoules('');
+      setLngWattHours('');
     }
   };
 
@@ -358,19 +416,32 @@ export default function App() {
     if (!isNaN(num)) {
       const totalCf = num * CF_UNITS[lngCfUnit as keyof typeof CF_UNITS];
       const totalTonne = totalCf / LNG_CF_PER_TONNE;
+      const totalMmbtu = totalTonne * LNG_MMBTU_PER_TONNE;
       const tonneUnit = autoScaleUnit(totalTonne, TONNE_UNITS);
       setLngTonneUnit(tonneUnit);
       setLngTonne(smartFormat(totalTonne / TONNE_UNITS[tonneUnit as keyof typeof TONNE_UNITS]));
-      setLngMmbtu(smartFormat(totalTonne * LNG_MMBTU_PER_TONNE));
+      setLngMmbtu(smartFormat(totalMmbtu));
       
       const totalCm = totalTonne * LNG_CM_PER_TONNE;
       const cmUnit = autoScaleUnit(totalCm, CM_UNITS);
       setLngCmUnit(cmUnit);
       setLngCm(smartFormat(totalCm / CM_UNITS[cmUnit as keyof typeof CM_UNITS]));
+
+      const totalJ = totalMmbtu * LNG_J_PER_MMBTU;
+      const jUnit = autoScaleUnit(totalJ, JOULE_UNITS);
+      setLngJoulesUnit(jUnit);
+      setLngJoules(smartFormat(totalJ / JOULE_UNITS[jUnit as keyof typeof JOULE_UNITS]));
+
+      const totalWh = totalMmbtu * LNG_WH_PER_MMBTU;
+      const whUnit = autoScaleUnit(totalWh, WH_UNITS);
+      setLngWattHoursUnit(whUnit);
+      setLngWattHours(smartFormat(totalWh / WH_UNITS[whUnit as keyof typeof WH_UNITS]));
     } else if (val === '') {
       setLngTonne('');
       setLngMmbtu('');
       setLngCm('');
+      setLngJoules('');
+      setLngWattHours('');
     }
   };
 
@@ -390,19 +461,32 @@ export default function App() {
     if (!isNaN(num)) {
       const totalCm = num * CM_UNITS[lngCmUnit as keyof typeof CM_UNITS];
       const totalTonne = totalCm / LNG_CM_PER_TONNE;
+      const totalMmbtu = totalTonne * LNG_MMBTU_PER_TONNE;
       const tonneUnit = autoScaleUnit(totalTonne, TONNE_UNITS);
       setLngTonneUnit(tonneUnit);
       setLngTonne(smartFormat(totalTonne / TONNE_UNITS[tonneUnit as keyof typeof TONNE_UNITS]));
-      setLngMmbtu(smartFormat(totalTonne * LNG_MMBTU_PER_TONNE));
+      setLngMmbtu(smartFormat(totalMmbtu));
       
       const totalCf = totalTonne * LNG_CF_PER_TONNE;
       const cfUnit = autoScaleUnit(totalCf, CF_UNITS);
       setLngCfUnit(cfUnit);
       setLngCf(smartFormat(totalCf / CF_UNITS[cfUnit as keyof typeof CF_UNITS]));
+
+      const totalJ = totalMmbtu * LNG_J_PER_MMBTU;
+      const jUnit = autoScaleUnit(totalJ, JOULE_UNITS);
+      setLngJoulesUnit(jUnit);
+      setLngJoules(smartFormat(totalJ / JOULE_UNITS[jUnit as keyof typeof JOULE_UNITS]));
+
+      const totalWh = totalMmbtu * LNG_WH_PER_MMBTU;
+      const whUnit = autoScaleUnit(totalWh, WH_UNITS);
+      setLngWattHoursUnit(whUnit);
+      setLngWattHours(smartFormat(totalWh / WH_UNITS[whUnit as keyof typeof WH_UNITS]));
     } else if (val === '') {
       setLngTonne('');
       setLngMmbtu('');
       setLngCf('');
+      setLngJoules('');
+      setLngWattHours('');
     }
   };
 
@@ -413,6 +497,96 @@ export default function App() {
       const totalTonne = mmbtuNum / LNG_MMBTU_PER_TONNE;
       const totalCm = totalTonne * LNG_CM_PER_TONNE;
       setLngCm(smartFormat(totalCm / CM_UNITS[newUnit as keyof typeof CM_UNITS]));
+    }
+  };
+
+  const handleLngJoulesChange = (val: string) => {
+    setLngJoules(val);
+    const num = parseFloat(val);
+    if (!isNaN(num)) {
+      const totalJ = num * JOULE_UNITS[lngJoulesUnit as keyof typeof JOULE_UNITS];
+      const totalMmbtu = totalJ / LNG_J_PER_MMBTU;
+      const totalTonne = totalMmbtu / LNG_MMBTU_PER_TONNE;
+      const tonneUnit = autoScaleUnit(totalTonne, TONNE_UNITS);
+      setLngTonneUnit(tonneUnit);
+      setLngTonne(smartFormat(totalTonne / TONNE_UNITS[tonneUnit as keyof typeof TONNE_UNITS]));
+      setLngMmbtu(smartFormat(totalMmbtu));
+      
+      const totalCf = totalTonne * LNG_CF_PER_TONNE;
+      const cfUnit = autoScaleUnit(totalCf, CF_UNITS);
+      setLngCfUnit(cfUnit);
+      setLngCf(smartFormat(totalCf / CF_UNITS[cfUnit as keyof typeof CF_UNITS]));
+
+      const totalCm = totalTonne * LNG_CM_PER_TONNE;
+      const cmUnit = autoScaleUnit(totalCm, CM_UNITS);
+      setLngCmUnit(cmUnit);
+      setLngCm(smartFormat(totalCm / CM_UNITS[cmUnit as keyof typeof CM_UNITS]));
+
+      const totalWh = totalMmbtu * LNG_WH_PER_MMBTU;
+      const whUnit = autoScaleUnit(totalWh, WH_UNITS);
+      setLngWattHoursUnit(whUnit);
+      setLngWattHours(smartFormat(totalWh / WH_UNITS[whUnit as keyof typeof WH_UNITS]));
+    } else if (val === '') {
+      setLngTonne('');
+      setLngMmbtu('');
+      setLngCf('');
+      setLngCm('');
+      setLngWattHours('');
+    }
+  };
+
+  const handleLngJoulesUnitChange = (newUnit: string) => {
+    setLngJoulesUnit(newUnit);
+    const mmbtuNum = parseFloat(lngMmbtu);
+    if (!isNaN(mmbtuNum)) {
+      const totalMmbtu = mmbtuNum;
+      const totalJ = totalMmbtu * LNG_J_PER_MMBTU;
+      setLngJoules(smartFormat(totalJ / JOULE_UNITS[newUnit as keyof typeof JOULE_UNITS]));
+    }
+  };
+
+  const handleLngWattHoursChange = (val: string) => {
+    setLngWattHours(val);
+    const num = parseFloat(val);
+    if (!isNaN(num)) {
+      const totalWh = num * WH_UNITS[lngWattHoursUnit as keyof typeof WH_UNITS];
+      const totalMmbtu = totalWh / LNG_WH_PER_MMBTU;
+      const totalTonne = totalMmbtu / LNG_MMBTU_PER_TONNE;
+      const tonneUnit = autoScaleUnit(totalTonne, TONNE_UNITS);
+      setLngTonneUnit(tonneUnit);
+      setLngTonne(smartFormat(totalTonne / TONNE_UNITS[tonneUnit as keyof typeof TONNE_UNITS]));
+      setLngMmbtu(smartFormat(totalMmbtu));
+      
+      const totalCf = totalTonne * LNG_CF_PER_TONNE;
+      const cfUnit = autoScaleUnit(totalCf, CF_UNITS);
+      setLngCfUnit(cfUnit);
+      setLngCf(smartFormat(totalCf / CF_UNITS[cfUnit as keyof typeof CF_UNITS]));
+
+      const totalCm = totalTonne * LNG_CM_PER_TONNE;
+      const cmUnit = autoScaleUnit(totalCm, CM_UNITS);
+      setLngCmUnit(cmUnit);
+      setLngCm(smartFormat(totalCm / CM_UNITS[cmUnit as keyof typeof CM_UNITS]));
+
+      const totalJ = totalMmbtu * LNG_J_PER_MMBTU;
+      const jUnit = autoScaleUnit(totalJ, JOULE_UNITS);
+      setLngJoulesUnit(jUnit);
+      setLngJoules(smartFormat(totalJ / JOULE_UNITS[jUnit as keyof typeof JOULE_UNITS]));
+    } else if (val === '') {
+      setLngTonne('');
+      setLngMmbtu('');
+      setLngCf('');
+      setLngCm('');
+      setLngJoules('');
+    }
+  };
+
+  const handleLngWattHoursUnitChange = (newUnit: string) => {
+    setLngWattHoursUnit(newUnit);
+    const mmbtuNum = parseFloat(lngMmbtu);
+    if (!isNaN(mmbtuNum)) {
+      const totalMmbtu = mmbtuNum;
+      const totalWh = totalMmbtu * LNG_WH_PER_MMBTU;
+      setLngWattHours(smartFormat(totalWh / WH_UNITS[newUnit as keyof typeof WH_UNITS]));
     }
   };
 
@@ -509,9 +683,10 @@ export default function App() {
     handleOilTonneYearChange(oilTonneYear);
   }, [bblPerTonne, params.daysPerYear]);
 
-  // Fetch exchange rate on mount
+  // Fetch exchange rate and gold price on mount
   useEffect(() => {
-    const fetchExchangeRate = async () => {
+    const fetchInitialData = async () => {
+      // Fetch Exchange Rate
       try {
         const response = await fetch('https://open.er-api.com/v6/latest/USD');
         const data = await response.json();
@@ -522,14 +697,25 @@ export default function App() {
       } catch (error) {
         console.error('Failed to fetch exchange rate:', error);
       }
-    };
-    fetchExchangeRate();
-  }, []);
 
-  useEffect(() => {
-    handleGoldPriceUsdChange(goldPriceUsd);
-    handleLngPriceUsdChange(lngPriceUsd);
-  }, [params.usdToCny]);
+      // Fetch Gold Price (PAXG/USDT as proxy for Gold/USD)
+      try {
+        const response = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=PAXGUSDT');
+        const data = await response.json();
+        if (data && data.price) {
+          const newGoldPrice = parseFloat(data.price);
+          if (!isNaN(newGoldPrice)) {
+            const formattedPrice = smartFormat(newGoldPrice);
+            setGoldPriceUsd(formattedPrice);
+            // The useEffect for params.usdToCny will handle updating goldPriceCny
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch gold price:', error);
+      }
+    };
+    fetchInitialData();
+  }, []);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans p-4 md:p-8">
@@ -540,33 +726,44 @@ export default function App() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
               <ArrowRightLeft className="w-6 h-6 text-indigo-600" />
-              Oil, Gas & Mining Converter
+              🌊资源单位换算器by WL
             </h1>
             <p className="text-sm text-slate-500 mt-1">Professional unit conversion for energy analysts</p>
           </div>
         </header>
 
-        {/* Tabs */}
-        <div className="flex p-1 bg-slate-200/50 rounded-xl w-fit">
-          {[
-            { id: 'gold', icon: Coins, label: 'Gold / 黄金' },
-            { id: 'lng', icon: Flame, label: 'LNG / 天然气' },
-            { id: 'oil', icon: Droplets, label: 'Oil / 原油' },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as CommodityType)}
-              className={cn(
-                "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all",
-                activeTab === tab.id 
-                  ? "bg-white text-indigo-600 shadow-sm" 
-                  : "text-slate-600 hover:text-slate-900"
-              )}
-            >
-              <tab.icon className="w-4 h-4" />
-              {tab.label}
-            </button>
-          ))}
+        {/* Tabs & Clear Button */}
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex p-1 bg-slate-200/50 rounded-xl w-fit overflow-x-auto">
+            {[
+              { id: 'gold', icon: Coins, label: 'Gold / 黄金' },
+              { id: 'lng', icon: Flame, label: 'LNG / 天然气' },
+              { id: 'oil', icon: Droplets, label: 'Oil / 原油' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as CommodityType)}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap",
+                  activeTab === tab.id 
+                    ? "bg-white text-indigo-600 shadow-sm" 
+                    : "text-slate-600 hover:text-slate-900"
+                )}
+              >
+                <tab.icon className="w-4 h-4" />
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={handleClearTab}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-all border border-red-100"
+            title="Clear current tab / 清空当前页"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span className="hidden sm:inline">Clear / 清空</span>
+          </button>
         </div>
 
         {/* Main Content */}
@@ -658,6 +855,22 @@ export default function App() {
                             value={lngMmbtu} 
                             onChange={handleLngMmbtuChange} 
                             unit="MMBtu" 
+                          />
+                          <SelectInputGroup 
+                            label="Joules" 
+                            value={lngJoules} 
+                            onChange={handleLngJoulesChange} 
+                            unit={lngJoulesUnit}
+                            onUnitChange={handleLngJoulesUnitChange}
+                            unitOptions={['MJ', 'GJ', 'TJ']}
+                          />
+                          <SelectInputGroup 
+                            label="Watt-hours" 
+                            value={lngWattHours} 
+                            onChange={handleLngWattHoursChange} 
+                            unit={lngWattHoursUnit}
+                            onUnitChange={handleLngWattHoursUnitChange}
+                            unitOptions={['kWh', 'MWh', 'GWh', 'TWh']}
                           />
                         </div>
                       </section>

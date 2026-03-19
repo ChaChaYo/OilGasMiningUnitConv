@@ -1,5 +1,8 @@
-## 用法说明
+# Oil, Gas & Mining Converter
 
-这是我用google ai studio写的一个油气、矿业行业的单位换算计算器。
+Professional unit conversion for energy analysts.
 
-现在需要本地测试一下，然后部署到github上。
+## 下一步开发计划 (Next Development Plan)
+
+- 调用 Finnhub API 打开时更新天然气数据
+- 考虑增加本地数据缓存机制

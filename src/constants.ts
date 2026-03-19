@@ -20,7 +20,7 @@ export const OIL_FACTORS = {
 
 export const DEFAULT_PARAMS = {
   usdToCny: 7.2,
-  goldPriceUsdPerOz: 2150,
+  goldPriceUsdPerOz: 4500,
   oilDensity: 0.85, // Specific gravity (water = 1)
   daysPerYear: 365,
 };
